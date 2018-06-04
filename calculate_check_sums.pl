@@ -6,84 +6,84 @@ use File::Slurp;
 use Digest::SHA qw(sha1_hex);
 use Cwd 'abs_path';
 
-# Skrypt do obliczania sum kontrlonych archiwizowanych plików
+# Script for calculation of check sums of archived files
 
-my $czas_start = time;
+my $start_time = time;
 
-######  Argumenty skryptu  ######
+######  Arguments  ######
 
-my $ilosc_argumentow = $#ARGV + 1;
-if ($ilosc_argumentow != 2) {
-    print "\nUżycie: oblicz_sumy_kontrolne.pl ścieżka_do_katalogu plik_wynikowy\n";
+my $num_of_args = $#ARGV + 1;
+if ($num_of_args != 2) {
+    print "\nUsage: calculate_check_sums.pl directory_path result_file\n";
     exit;
 }
 
-my $sciezka = $ARGV[0];
-my $plik_wynikowy = $ARGV[1];
+my $dir_path = $ARGV[0];
+my $output_file = $ARGV[1];
 
-print "\nWprowadzona ścieżka: $sciezka\n";
-print "Wprowadzony plik:    $plik_wynikowy\n\n";
+print "\nDirectory path to process: $dir_path\n";
+print   "Output file:               $output_file\n\n";
 
-######  Przygotowanie  ######
+######  Preparation  ######
 
-open(my $PLIK, '>', $plik_wynikowy) or die "Nie można otworzyć pliku $plik_wynikowy: $!";
+open(my $FILE, '>', $output_file) or die "Can not open file $output_file: $!";
 
-my $ilosc_plikow = 0;
-my @nazwy_plikow = ();
-my $powtarzajace_sie_pliki = "";
+my $number_of_files = 0;
+my @filenames = ();
+my $repeating_filenames = "";
 
-print $PLIK "    Suma SHA1                                   Nazwa pliku\n";
-print $PLIK "    =======================================================\n";
+print $FILE "    SHA1 sum                                    File name\n";
+print $FILE "    =====================================================\n";
 
-######  Wykonanie  ######
+######  Execution  ######
 
-sub sortowanie {
+sub sorting {
     return sort @_;
 }
 
-sub akcja {
-    if (-d) {                   # gdy katalog
-        print $PLIK "\nkatalog: $_\n";
+sub action {
+    if (-d) {                            # when a directory
+        print $FILE "\ndirectory: $_\n";
         print abs_path($_), "\n";
-    } else {                    # gdy plik
-        my $nazwa_pliku = $_;
-        $ilosc_plikow++;
+    } else {                             # when a file
+        my $file_name = $_;
+        $number_of_files++;
 
-        my $zawartosc = read_file($nazwa_pliku);
-        my $suma_sha = sha1_hex($zawartosc);
+        my $contents = read_file($file_name);
+        my $suma_sha = sha1_hex($contents);
 
-        print $PLIK "    $suma_sha    $nazwa_pliku\n";
+        print $FILE "    $suma_sha    $file_name\n";
 
-        if (grep(/$nazwa_pliku/, @nazwy_plikow)) { # jeśli nazwa pliku się powtarza
-           $powtarzajace_sie_pliki = $powtarzajace_sie_pliki . $nazwa_pliku . "\n";
+        if (grep(/$file_name/, @filenames)) { # when the file name is repeating
+           $repeating_filenames = $repeating_filenames . $file_name . "\n";
         } else {
-           push(@nazwy_plikow, $nazwa_pliku);
+           push(@filenames, $file_name);
         }
     }
 }
 
-find({ preprocess => \&sortowanie,
-       wanted     => \&akcja},
-     $sciezka);
+find({ preprocess => \&sorting,
+       wanted     => \&action},
+     $dir_path);
 
-######  Zakończenie  ######
+######  Finish  ######
 
-if ($powtarzajace_sie_pliki ne "") {
-   print "\nPowtarzające się nazwy plików:\n", $powtarzajace_sie_pliki;
+if ($repeating_filenames ne "") {
+   print "\nRepeating file names:\n", $repeating_filenames;
 } else {
-   print "\nWszystkie nazwy plików są unikatowe.\n";
+   print "\nAll File names are unique.\n";
 }
 
-my $dlugosc = time - $czas_start;
+my $duration = time - $start_time;
 
-print $PLIK "\nIlość plików: $ilosc_plikow\n";
-print $PLIK "Obliczenie sum kontrolnych zajęło: $dlugosc s\n";
+print $FILE "\nNumber of files: $number_of_files\n";
+print $FILE "Calculation of check sums took: $duration s\n";
 
-my ($dzien, $miesiac, $rok) = (localtime)[3,4,5];
-print $PLIK "Data: ", $dzien, ".", sprintf("%02d", $miesiac+1) , ".", $rok+1900;
+my ($day, $month, $year) = (localtime)[3,4,5];
+print $FILE "Calculation date: ", $day, ".", sprintf("%02d", $month+1) , ".", $year+1900;
 
-close $PLIK;
+close $FILE;
 
-print "\nIlość plików: $ilosc_plikow\n";
-print "Obliczenie sum kontrolnych zajęło: $dlugosc s\n";
+print "\nNumber of files: $number_of_files\n";
+print "Calculation of check sums took: $duration s\n";
 

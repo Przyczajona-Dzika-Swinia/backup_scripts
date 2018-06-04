@@ -1,145 +1,145 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Data::Dumper qw(Dumper);
+# use Data::Dumper qw(Dumper);
 
-######  Argumenty skryptu  ######
+######  Arguments  ######
 
-my $ilosc_argumentow = $#ARGV + 1;
-if ($ilosc_argumentow != 2) {
-    print "\nUżycie: porownaj_sumy_kontrolne.pl stare_sumy nowe_sumy\n";
+my $num_of_args = $#ARGV + 1;
+if ($num_of_args != 2) {
+    print "\nUsage: compare_check_sums.pl old_checksums_file new_checksums_file\n";
     exit;
 }
 
-my $sciezka_stare = $ARGV[0];
-my $sciezka_nowe  = $ARGV[1];
+my $old_checksums_path = $ARGV[0];
+my $new_checksums_path = $ARGV[1];
 
-######  Przygotowanie  ######
+######  Preparation  ######
 
-open(my $STARE, '<', $sciezka_stare) or die "Nie można otworzyć pliku $sciezka_stare: $!";
-open(my $NOWE, '<', $sciezka_nowe) or die "Nie można otworzyć pliku $sciezka_nowe: $!";
+open(my $OLD_FILE, '<', $old_checksums_path) or die "Can not open file $old_checksums_path: $!";
+open(my $NEW_FILE, '<', $new_checksums_path) or die "Can not open file $new_checksums_path: $!";
 
-######  Wczytanie plików  ######
+######  Reading of log files  ######
 
-# format tablic:
-# [i][0] - sha1
-# [i][1] - nazwa pliku
-# [i][2] - znaleziony
-my @matrix_stare = ();
-my @matrix_nowe = ();
+# array format:
+# [i][0] - sha1 sum
+# [i][1] - file name
+# [i][2] - found
+my @matrix_old = ();
+my @matrix_new = ();
 
-wczytaj_liste_z_haszami($STARE, $sciezka_stare, \@matrix_stare);
-wczytaj_liste_z_haszami($NOWE, $sciezka_nowe, \@matrix_nowe);
+read_list_of_checksums($OLD_FILE, $old_checksums_path, \@matrix_old);
+read_list_of_checksums($NEW_FILE, $new_checksums_path, \@matrix_new);
 
-######  Wykonanie porównania  ######
+######  Execution  ######
 
-my $pasujace_pliki = "";
-my $niepasujace_pliki = "";
-my $ilosc_pasujacych_plikow = 0;
-my $ilosc_niepasujacych_plikow = 0;
+my $matching_files = "";
+my $not_matching_files = "";
+my $number_of_matching_files = 0;
+my $number_of_not_matching_files = 0;
 
-foreach my $plik (@matrix_nowe) {
-   foreach my $drugi_plik (@matrix_stare) {
-      if (@$plik[1] eq @$drugi_plik[1]) {
-         if (@$plik[0] eq @$drugi_plik[0]) {
-            @$plik[2] = 'pasuje';
-            @$drugi_plik[2] = 'pasuje';
-            $ilosc_pasujacych_plikow++;
-            $pasujace_pliki .= "@$plik[1]\n";
-         } else {
-            @$plik[2] = 'inny_hash';
-            @$drugi_plik[2] = 'inny_hash';
-            $ilosc_niepasujacych_plikow++;
-            $niepasujace_pliki .= "@$plik[1]\n";
+foreach my $newer_file (@matrix_new) {
+   foreach my $older_file (@matrix_old) {
+      if (@$newer_file[1] eq @$older_file[1]) {
+         if (@$newer_file[0] eq @$older_file[0]) {     # SHA1 sums are matching
+            @$newer_file[2] = 'matching';
+            @$older_file[2] = 'matching';
+            $number_of_matching_files++;
+            $matching_files .= "@$newer_file[1]\n";
+         } else {                                      # SHA1 sums are not matching
+            @$newer_file[2] = 'different_checksum';
+            @$older_file[2] = 'different_checksum';
+            $number_of_not_matching_files++;
+            $not_matching_files .= "@$newer_file[1]\n";
          }
-         last;
+         last;                     # TODO improve this to handle files with non-unique names
       }
    }
 }
 
-print "Pliki z pasującymi hashami:\n$pasujace_pliki";
-print "Ilość: $ilosc_pasujacych_plikow\n\n";
+print "Files with matching checksums:\n$matching_files";
+print "Number: $number_of_matching_files\n\n";
 
-print "Pliki z niepasującymi hashami:\n$niepasujace_pliki";
-print "Ilość: $ilosc_niepasujacych_plikow\n\n";
+print "Files with not matching checksums:\n$not_matching_files";
+print "Number: $number_of_not_matching_files\n\n";
 
-wyswietl_usuniete_i_nowe(\@matrix_stare, \@matrix_nowe);
+print_deleted_and_new_files(\@matrix_old, \@matrix_new);
 
-######  Zakończenie  ######
+######  Finish  ######
 
-close $STARE;
-close $NOWE;
+close $OLD_FILE;
+close $NEW_FILE;
 
-######  Funkcje  ######
+######  Functions  ######
 
-sub wczytaj_liste_z_haszami {
+sub read_list_of_checksums {
 
-   my ($FILE, $sciezka, $matrix_ref) = @_;
+   my ($FILE, $path, $matrix_ref) = @_;
 
-   print "Wczytywanie listy z haszami: $sciezka\n";
+   print "Reading list of checksums: $path\n";
 
    my $i = 0;
-   my $linie_niepasujace = "";
+   my $not_fitting_lines = "";
 
-   while(my $linia = <$FILE>) {
+   while(my $row = <$FILE>) {
 
-      if ($linia =~ m/^\s{4}([0-9a-f]{40})\s{4}(.+)/) {
+      if ($row =~ m/^\s{4}([0-9a-f]{40})\s{4}(.+)/) {
          ${$matrix_ref}[$i][0] = $1;
          ${$matrix_ref}[$i][1] = $2;
-         ${$matrix_ref}[$i][2] = 'nie';
+         ${$matrix_ref}[$i][2] = '-';
          $i++;
       } else {
-         if (($linia ne "\n") && ($linia ne ".\n") &&
-             ($linia ne "    Suma SHA1                                   Nazwa pliku\n") &&
-             ($linia ne "    =======================================================\n")) {
-#         if ($linia =~ m/^\s{4}/) {
-            $linie_niepasujace .= $linia;
+         if (($row ne "\n") && ($row ne ".\n") &&               # TODO improve this
+             ($row ne "    SHA1 sum                                      File name\n") &&
+             ($row ne "    =======================================================\n")) {
+#         if ($row =~ m/^\s{4}/) {
+            $not_fitting_lines .= $row;
          }
       }
    }
 
-   print "Ilość plików: $i\n\n";
+   print "Number of files: $i\n\n";
 
-   if ($linie_niepasujace ne "") {
-      print "Linie niepasujące:\n";
-      print $linie_niepasujace, "\n";
+   if ($not_fitting_lines ne "") {
+      print "Not fitting lines:\n";
+      print $not_fitting_lines, "\n\n";
    }
 }
 
-sub wyswietl_usuniete_i_nowe {
+sub print_deleted_and_new_files {
 
-   my ($stare_ref, $nowe_ref) = @_;
+   my ($old_ref, $new_ref) = @_;
 
-   print "Pliki usunięte:\n";
-   my $ilosc_usunietych = 0;
+   print "Removed files:\n";
+   my $number_of_removed_files = 0;
 
-   foreach my $plik (@{$stare_ref}) {
-      if (@$plik[2] eq 'nie') {
-         print @$plik[1], "\n";
-         $ilosc_usunietych++;
+   foreach my $file (@{$old_ref}) {
+      if (@$file[2] eq '-') {
+         print @$file[1], "\n";
+         $number_of_removed_files++;
       }
    }
 
-   if ($ilosc_usunietych == 0) {
+   if ($number_of_removed_files == 0) {
       print "-\n";
    } else {
-      print ">>> Ilość usuniętych plików: $ilosc_usunietych\n";
+      print ">>> Number of removed files: $number_of_removed_files\n";
    }
 
-   print "\nPliki nowe:\n";
-   my $ilosc_nowych = 0;
+   print "\nNew files:\n";
+   my $number_of_new_files = 0;
 
-   foreach my $plik (@{$nowe_ref}) {
-      if (@$plik[2] eq 'nie') {
-         print @$plik[1], "\n";
-         $ilosc_nowych++;
+   foreach my $file (@{$new_ref}) {
+      if (@$file[2] eq '-') {
+         print @$file[1], "\n";
+         $number_of_new_files++;
       }
    }
 
-   if ($ilosc_nowych == 0) {
+   if ($number_of_new_files == 0) {
       print "-\n";
    } else {
-      print ">>> Ilość nowych plików: $ilosc_nowych\n";
+      print ">>> Number of new files: $number_of_new_files\n";
    }
 }
 
